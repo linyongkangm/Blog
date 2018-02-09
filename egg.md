@@ -1,13 +1,16 @@
+# egg运行原理
 
 [结合源码解密 egg 运行原理](https://zhuanlan.zhihu.com/p/29102746)这篇文章从`egg-bin`开始到`loader`完成的过程解析的很清楚，整理为下图：
+
 ![egg-run.png](https://github.com/linyongkangm/Blog/blob/master/public/images/egg-run.png)
+
 但是仍然有几个问题需要看源码才能知道是`为什么`或`怎么做`的:
 - [为什么要使用 Symbol.for('egg#eggPath') 来指定当前框架的路径](#Mark1)
 - [loader的顺序](#Mark2)
 - [Controller的延时实例化](#Mark3)
 - [Service的延时实例化](#Mark4)
 
-<div id="Mark1"></div>
+
 ## 为什么要使用 Symbol.for('egg#eggPath') 来指定当前框架的路径
 ```JavaScript
 class Application extends egg.Application {
@@ -17,7 +20,9 @@ class Application extends egg.Application {
   }
 }
 ```
+
 因为框架继承的实现方案是基于类继承的，每一层框架都必须继承上一层框架，内部需要收集每个框架所在目录，这就可以得到`eggPaths`属性，然后才可以load其他文件：
+
 ```JavaScript
   getEggPaths() {
     // avoid require recursively
@@ -42,7 +47,8 @@ class Application extends egg.Application {
     return eggPaths;
   }
 ```
-<div id="Mark2"></div>
+
+
 ## loader的顺序
 在`loadPlugins`的时候就会使用`eggPaths`:
 ```JavaScript
@@ -96,7 +102,6 @@ loadMiddleware();
 这里就可以看到先推入`orderPlugins`,然后推入框架的路径,最后推入应用的路径:*按插件 => 框架 => 应用依次加载*
 
 
-<div id="Mark3"></div>
 ## Controller的延时实例化
 在loaderController的时候首先会对收集到的每个控制器中的方法进行包装：
 ```JavaScript
@@ -173,7 +178,7 @@ load() {
 };
 ```
 
-<div id="Mark4"></div>
+
 ## Service的延时实例化
 同样在loaderService的时候首先收集Service，然后会挟持app.context.service的getter：
 ```JavaScript
