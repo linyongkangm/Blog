@@ -1,14 +1,14 @@
 # egg运行原理
 
-[结合源码解密 egg 运行原理](https://zhuanlan.zhihu.com/p/29102746)这篇文章从`egg-bin`开始到`loader`完成的过程解析的很清楚，整理为下图：
+[结合源码解密 egg 运行原理](https://zhuanlan.zhihu.com/p/29102746)这篇文章从`egg-bin`开始到`loader`完成的过程解析的很清楚，整理为下图：  
 
-![egg-run.png](https://github.com/linyongkangm/Blog/blob/master/public/images/egg-run.png)
+![egg-run.png](https://github.com/linyongkangm/Blog/blob/master/public/images/egg-run.png)   
 
 但是仍然有几个问题需要看源码才能知道是`为什么`或`怎么做`的:
-- [为什么要使用 Symbol.for('egg#eggPath') 来指定当前框架的路径](#Mark1)
-- [loader的顺序](#Mark2)
-- [Controller的延时实例化](#Mark3)
-- [Service的延时实例化](#Mark4)
+- 为什么要使用 Symbol.for('egg#eggPath') 来指定当前框架的路径
+- loader的顺序
+- Controller的延时实例化
+- Service的延时实例化
 
 
 ## 为什么要使用 Symbol.for('egg#eggPath') 来指定当前框架的路径
@@ -21,8 +21,7 @@ class Application extends egg.Application {
 }
 ```
 
-因为框架继承的实现方案是基于类继承的，每一层框架都必须继承上一层框架，内部需要收集每个框架所在目录，这就可以得到`eggPaths`属性，然后才可以load其他文件：
-
+因为框架继承的实现方案是基于类继承的，每一层框架都必须继承上一层框架，内部会收集每个框架所在目录，这就可以得到`eggPaths`属性，然后才可以根据这个`eggPaths`属性在每个框架中load其他文件：
 ```JavaScript
   getEggPaths() {
     // avoid require recursively
@@ -47,6 +46,7 @@ class Application extends egg.Application {
     return eggPaths;
   }
 ```
+同时可以看到`eggPaths`是使用`unshift`将框架路径插入的，这就可以在后续的遍历中先遍历底层框架：**框架按继承顺序加载，越底层越先加载。**
 
 
 ## loader的顺序
@@ -54,12 +54,12 @@ class Application extends egg.Application {
 ```JavaScript
 const eggPluginConfigPaths = this.eggPaths.map(eggPath => path.join(eggPath, 'config/plugin.default.js'));
 ```
-最后经过[读入，合并，匹配match，按依赖排序](https://github.com/linyongkangm/egg-core/blob/eb4b12b3f0242fed5fd9a959850d7ce9e8666c25/lib/loader/mixin/plugin.js#L57)等步骤就会生成`getLoadUnits`属性，它是按依赖排序的插件信息表。
-*有非内置插件的load必须先执行loadPlugin,因为会生成`orderPlugins`属性，在`getLoadUnits`会给其他load使用。*
+最后经过[读入，合并，匹配match，按依赖排序](https://github.com/linyongkangm/egg-core/blob/eb4b12b3f0242fed5fd9a959850d7ce9e8666c25/lib/loader/mixin/plugin.js#L57)等步骤就会生成`orderPlugins`属性，它是按依赖排序的插件信息表。所以*有非内置插件的load必须先执行loadPlugin,因为会生成`orderPlugins`属性，在`getLoadUnits`会给其他load使用。*
 
 然后分别是:
 ```JavaScript
 loadConfig();
+
 loadApplicationExtend();
 loadRequestExtend();
 loadResponseExtend();
@@ -99,7 +99,7 @@ loadMiddleware();
     return dirs;
   }
 ```
-这里就可以看到先推入`orderPlugins`,然后推入框架的路径,最后推入应用的路径:*按插件 => 框架 => 应用依次加载*
+这里就可以看到先推入`orderPlugins`,然后推入框架的路径,最后推入应用的路径:**按插件 => 框架 => 应用依次加载。**
 
 
 ## Controller的延时实例化
@@ -132,7 +132,7 @@ function wrapClass(Controller) {
   }
   return ret;
   function methodToMiddleware(Controller, key) {
-    return function classControllerMiddleware(...args) {
+    return function classControllerMiddleware(...args) { //!!包装的结果
       const controller = new Controller(this);
       return utils.callFn(controller[key], args, controller);
     };
@@ -167,17 +167,15 @@ load() {
   return target;
 }
 ```
-
 然后在接收到请求的时候执行的就会执行classControllerMiddleware:
 ```JavaScript
  function classControllerMiddleware(...args) {
    //这里的Controller就是来自包装方法时产生的闭包；
   const controller = new Controller(this);//对每个请求对新建一个Controller实例
   // 这里的key也是来自包装方法时产生的闭包
-  return utils.callFn(controller[key], args, controller);//这里就可以使用新建的controller调用相应的方法了
+  return utils.callFn(controller[key], args, controller);//这里就会使用新建的controller调用相应的方法了
 };
 ```
-
 
 ## Service的延时实例化
 同样在loaderService的时候首先收集Service，然后会挟持app.context.service的getter：
@@ -201,4 +199,7 @@ Object.defineProperty(app.context, property, {
   },
 });
 ```
-这里的this就是app.context，在每次请求的时候Koa都会生成一个新的context，这样就没了CLASSLOADER，就会重新生成，从而在每次请求的时候都会生成一个Service实例。
+这里的this就是app.context，在每次请求的时候Koa都会生成一个新的context，这样就没了CLASSLOADER属性，从而在每次请求的时候都会生成一个Service实例。
+
+## 顺便一提
+在egg-core的源码中大量使用了`Symbol`，这样可以保证变量的唯一性，也能防止用户在继承的误覆盖一些重要变量。
