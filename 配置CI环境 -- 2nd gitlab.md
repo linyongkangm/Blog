@@ -1,4 +1,4 @@
-# gitlab 安装
+# gitlab
 
 [GitLab Docker images](https://docs.gitlab.com/omnibus/docker/)
 
