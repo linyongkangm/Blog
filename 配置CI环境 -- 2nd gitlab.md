@@ -3,7 +3,9 @@
 [GitLab Docker images](https://docs.gitlab.com/omnibus/docker/)
 
 ## pre
+
 考虑到还有gitlab-runner要安装，所以我们使用docker network建立一个docker的网络，在network内的容器就可以使用docker name通信。
+
 ```bash
 docker network create gitlab-network
 ```
