@@ -73,8 +73,10 @@ vim /srv/gitlab-runner/config/config.toml
   clone_url = "http://gitlab"
   [runners.docker]
     network_mode = "gitlab-network"
+    volumes = ["/cache:/cache"]
 ```
 
 这样就是将clone的url改为`http://gitlab`，就是`gitlab`容器的名；并且将executor的docker加入到`gitlab-network`中，这样就可访问到`gitlab`容器中仓库了。
+`volumes = ["/cache:/cache"]`可以在有多个runner的时候共用cache。
 
 done
